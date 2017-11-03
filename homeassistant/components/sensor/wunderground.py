@@ -27,6 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 CONF_ATTRIBUTION = "Data provided by the WUnderground weather service"
 CONF_PWS_ID = 'pws_id'
 CONF_LANG = 'lang'
+CONF_QUERY = 'query'
 
 DEFAULT_LANG = 'EN'
 
@@ -615,7 +616,8 @@ LANG_CODES = [
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_API_KEY): cv.string,
-    vol.Optional(CONF_PWS_ID): cv.string,
+    vol.Exclusive(CONF_PWS_ID, 'query'): cv.string,
+    vol.Exclusive(CONF_QUERY, 'query'): cv.string,
     vol.Optional(CONF_LANG, default=DEFAULT_LANG):
     vol.All(vol.In(LANG_CODES)),
     vol.Inclusive(CONF_LATITUDE, 'coordinates',
@@ -634,7 +636,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     rest = WUndergroundData(
         hass, config.get(CONF_API_KEY), config.get(CONF_PWS_ID),
-        config.get(CONF_LANG), latitude, longitude)
+        config.get(CONF_QUERY), config.get(CONF_LANG), latitude, longitude)
     sensors = []
     for variable in config[CONF_MONITORED_CONDITIONS]:
         sensors.append(WUndergroundSensor(rest, variable))
@@ -761,11 +763,13 @@ class WUndergroundSensor(Entity):
 class WUndergroundData(object):
     """Get data from WUnderground."""
 
-    def __init__(self, hass, api_key, pws_id, lang, latitude, longitude):
+    def __init__(self, hass, api_key, pws_id, query, lang,
+                 latitude, longitude):
         """Initialize the data object."""
         self._hass = hass
         self._api_key = api_key
         self._pws_id = pws_id
+        self._query = query
         self._lang = 'lang:{}'.format(lang)
         self._latitude = latitude
         self._longitude = longitude
@@ -781,6 +785,8 @@ class WUndergroundData(object):
             self._api_key, "/".join(self._features), self._lang)
         if self._pws_id:
             url = url + 'pws:{}'.format(self._pws_id)
+        elif self._query:
+            url = url + '{}'.format(self._query)
         else:
             url = url + '{},{}'.format(self._latitude, self._longitude)
 
