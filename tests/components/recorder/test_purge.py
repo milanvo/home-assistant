@@ -3,6 +3,9 @@ import json
 from datetime import datetime, timedelta
 from time import sleep
 import unittest
+from unittest.mock import patch
+
+from sqlalchemy import exc
 
 from homeassistant.components import recorder
 from homeassistant.components.recorder.const import DATA_INSTANCE
@@ -134,10 +137,10 @@ class TestRecorderPurge(unittest.TestCase):
             # Small wait for recorder thread
             sleep(0.1)
 
-            # we should only have 2 states left after purging
+            # not changed, 5 initial states
             self.assertEqual(states.count(), 5)
 
-            # now we should only have 3 events left
+            # not changed, 5 initial events
             self.assertEqual(events.count(), 5)
 
             # run purge method - correct service data
@@ -153,3 +156,29 @@ class TestRecorderPurge(unittest.TestCase):
 
             # now we should only have 3 events left
             self.assertEqual(events.count(), 3)
+
+    # @patch('homeassistant.components.recorder.purge.purge_old_data')
+    # @patch.object('sqlalchemy.engine.Engine', 'execute', side_effect=exc.OperationalError(None, 'test exception', None))
+    def test_purge_vacuum_exception(self):
+
+        # @patch('homeassistant.components.recorder.Recorder', side_effect=exc.OperationalError(None, 'test exception', None))
+        """Test SQLite vacuuming exception."""
+        # run purge_old_data()
+#         def side_effect(*args, **kwargs):
+#             print(args)
+#             if args[0] == 'VACUUM':
+#                 return exc.OperationalError('vacuum', 'none', 'purge')
+#             return DEFAULT
+#         with patch.object(self.hass.data[DATA_INSTANCE].engine, 'execute', new=side_effect) as instance:
+#             purge_old_data(instance, 4)
+
+        def test_exception(*args, **kwargs):
+            if args[0] == 'VACUUM':
+                raise exc.OperationalError('vacuum', 'none', 'purge')
+            return DEFAULT
+
+        with patch.object(self.hass.data[DATA_INSTANCE].engine, 'execute', side_efect=test_exception) as instance:
+             purge_old_data(instance, 4)
+
+#         self.hass.data[DATA_INSTANCE].engine.execute = side_effect
+#         purge_old_data(self.hass.data[DATA_INSTANCE], 4)
