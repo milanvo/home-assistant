@@ -17,6 +17,7 @@ from homeassistant.const import (
     TEMP_FAHRENHEIT, TEMP_CELSIUS, LENGTH_INCHES, LENGTH_KILOMETERS,
     LENGTH_MILES, LENGTH_FEET, STATE_UNKNOWN, ATTR_ATTRIBUTION,
     ATTR_FRIENDLY_NAME)
+from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import Throttle
 import homeassistant.helpers.config_validation as cv
@@ -616,16 +617,17 @@ LANG_CODES = [
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_API_KEY): cv.string,
+<<<<<<< HEAD
     vol.Exclusive(CONF_PWS_ID, 'query'): cv.string,
     vol.Exclusive(CONF_QUERY, 'query'): cv.string,
-    vol.Optional(CONF_LANG, default=DEFAULT_LANG):
-    vol.All(vol.In(LANG_CODES)),
+    vol.Optional(CONF_LANG, default=DEFAULT_LANG): vol.All(vol.In(LANG_CODES)),
+>>>>>>> fix-wunderground
     vol.Inclusive(CONF_LATITUDE, 'coordinates',
                   'Latitude and longitude must exist together'): cv.latitude,
     vol.Inclusive(CONF_LONGITUDE, 'coordinates',
                   'Latitude and longitude must exist together'): cv.longitude,
-    vol.Required(CONF_MONITORED_CONDITIONS, default=[]):
-    vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
+    vol.Required(CONF_MONITORED_CONDITIONS):
+        vol.All(cv.ensure_list, vol.Length(min=1), [vol.In(SENSOR_TYPES)]),
 })
 
 
@@ -641,8 +643,9 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     for variable in config[CONF_MONITORED_CONDITIONS]:
         sensors.append(WUndergroundSensor(rest, variable))
 
-    if not rest.update():
-        return False
+    rest.update()
+    if not rest.data:
+        raise PlatformNotReady
 
     add_devices(sensors)
 
@@ -664,20 +667,20 @@ class WUndergroundSensor(Entity):
         self._entity_picture = None
         self._unit_of_measurement = self._cfg_expand("unit_of_measurement")
         self.rest.request_feature(SENSOR_TYPES[condition].feature)
-        self._long_text = None
 
     def _cfg_expand(self, what, default=None):
         """Parse and return sensor data."""
         cfg = SENSOR_TYPES[self._condition]
         val = getattr(cfg, what)
-        if callable(val):
-            try:
-                val = val(self.rest)
-            except (KeyError, IndexError, TypeError) as err:
-                _LOGGER.warning("Failed to expand cfg from WU API."
-                                " Condition: %s Attr: %s Error: %s",
-                                self._condition, what, repr(err))
-                val = default
+        if not callable(val):
+            return val
+        try:
+            val = val(self.rest)
+        except (KeyError, IndexError, TypeError, ValueError) as err:
+            _LOGGER.warning("Failed to expand cfg from WU API."
+                            " Condition: %s Attr: %s Error: %s",
+                            self._condition, what, repr(err))
+            val = default
 
         return val
 
@@ -688,30 +691,16 @@ class WUndergroundSensor(Entity):
         self._attributes[ATTR_FRIENDLY_NAME] = self._cfg_expand(
             "friendly_name")
 
-        if self._long_text:
-            self._attributes['long_text'] = self._long_text
-
         for (attr, callback) in attrs.items():
             if callable(callback):
                 try:
                     self._attributes[attr] = callback(self.rest)
-                except (KeyError, IndexError, TypeError) as err:
+                except (KeyError, IndexError, TypeError, ValueError) as err:
                     _LOGGER.warning("Failed to update attrs from WU API."
                                     " Condition: %s Attr: %s Error: %s",
                                     self._condition, attr, repr(err))
             else:
                 self._attributes[attr] = callback
-
-    def _update_state(self):
-        """Parse and update state."""
-        state = self._cfg_expand("value", STATE_UNKNOWN)
-
-        if isinstance(state, str) and len(state) > 255:
-            self._state = state[:248] + ' (more)'
-            self._long_text = state
-        else:
-            self._state = state
-            self._long_text = None
 
     @property
     def name(self):
@@ -751,7 +740,7 @@ class WUndergroundSensor(Entity):
             # no data, return
             return
 
-        self._update_state()
+        self._state = self._cfg_expand("value", STATE_UNKNOWN)
         self._update_attrs()
         self._icon = self._cfg_expand("icon", super().icon)
         url = self._cfg_expand("entity_picture")
