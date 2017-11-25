@@ -617,11 +617,9 @@ LANG_CODES = [
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_API_KEY): cv.string,
-<<<<<<< HEAD
     vol.Exclusive(CONF_PWS_ID, 'query'): cv.string,
     vol.Exclusive(CONF_QUERY, 'query'): cv.string,
     vol.Optional(CONF_LANG, default=DEFAULT_LANG): vol.All(vol.In(LANG_CODES)),
->>>>>>> fix-wunderground
     vol.Inclusive(CONF_LATITUDE, 'coordinates',
                   'Latitude and longitude must exist together'): cv.latitude,
     vol.Inclusive(CONF_LONGITUDE, 'coordinates',
